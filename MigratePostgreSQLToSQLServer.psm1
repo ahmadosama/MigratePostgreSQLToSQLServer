@@ -20,7 +20,9 @@
 #>
 function Execute-Process{
 param(
+[Parameter(Mandatory=$true)]
 [string]$filepath,
+[Parameter(Mandatory=$true)]
 [string]$arguments
 )
 
@@ -70,10 +72,16 @@ Write-Host "exit code: " + $p.ExitCode
      
 #>
 function ExecuteQuery-PostgreSQL{
-   param([string]$query,
+   param(
+		[Parameter(Mandatory=$true)]
+   [string]$query,
+		[Parameter(Mandatory=$true)]
    [string]$server,
+	   [Parameter(Mandatory=$true)]
    [string]$db,
+	   [Parameter(Mandatory=$true)]
    [string]$puser,
+	   [Parameter(Mandatory=$true)]
    [string]$ppwd
    )
    $conn = New-Object System.Data.Odbc.OdbcConnection
@@ -133,13 +141,18 @@ function ExecuteQuery-PostgreSQL{
 function Script-Table{
 param
 (
-[string]$datapath="C:\Projects\Migration\PostgrestoSQLServer\Data",
-[string]$server="localhost",
-[string]$db="mydb",
-[string]$puser="postgres",
-[string]$ppwd="postgres",
-[string]$scriptpath="C:\Projects\Migration\PostgrestoSQLServer\Schema",
-[string]$psqlpath = "C:\Program Files\PostgreSQL\9.6\bin\psql.exe",
+	[Parameter(Mandatory=$true)]
+[string]$datapath,
+[string]$server,
+	[Parameter(Mandatory=$true)]
+[string]$db,
+	[Parameter(Mandatory=$true)]
+[string]$puser,
+[string]$ppwd,
+	[Parameter(Mandatory=$true)]
+[string]$scriptpath,
+	[Parameter(Mandatory=$true)]
+[string]$psqlpath,
 [string]$schema="dbo",
 [string]$scriptoptions="all" #schema/data/all
 )
@@ -272,11 +285,16 @@ Function Script-Constraints
 {
 param
 (
-[string]$server="localhost",
-[string]$db="mydb",
-[string]$puser="postgres",
-[string]$ppwd="postgres",
-[string]$scriptpath="C:\Projects\Scripts\",
+	[Parameter(Mandatory=$true)]
+[string]$server,
+	[Parameter(Mandatory=$true)]
+[string]$db,
+	[Parameter(Mandatory=$true)]
+[string]$puser,
+[string]$ppwd,
+	[Parameter(Mandatory=$true)]
+[string]$scriptpath,
+	[Parameter(Mandatory=$true)]
 [string]$psqlpath = "C:\Program Files\PostgreSQL\9.6\bin\psql.exe" ,
 [string]$schema="dbo"
 )
@@ -370,15 +388,21 @@ $sq |   Out-File "$sqpath\sequences.sql"
 function Create-AzureSQLDB{
 
 param(
-[string]$AzureProfilePath="C:\Projects\70475\AzureProfile\azureprofile.json",
-[string]$azuresqlservername="dplsrv",
-[string]$resourcegroupname="dpl",
-[string]$databasename="postgretosql",
-[string]$login="dpladmin",
-[string]$password="Awesome@0987",
-[string]$location="Southeast Asia",
-[string]$startip="",
-[string]$endip=""
+[string]$AzureProfilePath,
+	[Parameter(Mandatory=$true)]
+[string]$azuresqlservername,
+	[Parameter(Mandatory=$true)]
+[string]$resourcegroupname,
+	[Parameter(Mandatory=$true)]
+[string]$databasename,
+	[Parameter(Mandatory=$true)]
+[string]$login,
+	[Parameter(Mandatory=$true)]
+[string]$password,
+	[Parameter(Mandatory=$true)]
+[string]$location,
+[string]$startip,
+[string]$endip
 )
 
 TRY
@@ -477,15 +501,21 @@ Throw;
 Function ExecuteQuery-SQLServer{
 
 param(
-[string]$server="win2012r2\SQL2014",
-[string]$database="dbmigrate",
-[string]$user="sa",
-[string]$pwd="sql@2014",
-[string]$query="",
-[string]$file="",
-[string]$dir="C:\Projects\Scripts"
+	[Parameter(Mandatory=$true)]
+[string]$server,
+	[Parameter(Mandatory=$true)]
+[string]$database,
+	[Parameter(Mandatory=$true)]
+[string]$user,
+	[Parameter(Mandatory=$true)]
+[string]$pwd,
+[string]$query,
+[string]$dir
 )
+	if($query.length -le 1 -and $dir.Length -le 1)
+	{ Write-Host "Please provide a query, directory with .sql files to execute. "; return;}
 
+	$loc = Get-Location
 #execute all .sql files in a dir
 $sqlfiles = Get-ChildItem -Path $dir -Recurse -Include *.sql
 foreach($sql in $sqlfiles)
@@ -493,10 +523,9 @@ foreach($sql in $sqlfiles)
 #execute the file
 Write-Host $sql.FullName
 Invoke-SQLcmd -ServerInstance $server -Database $database -Username $user -Password $pwd -InputFile $sql.FullName
-
-
 }
-
+	#switch to the current location
+	Set-Location $loc;
 }
 
 
@@ -540,13 +569,19 @@ Invoke-SQLcmd -ServerInstance $server -Database $database -Username $user -Passw
 #>
 function Bcpin-SQLServer{
 Param(
-[string]$server="win2012r2\SQL2014",
-[string]$database="dbmigrate",
-[string]$user="sa",
-[string]$pwd="sql@2014",
-[string]$dir="C:\Projects\Scripts",
+	[Parameter(Mandatory=$true)]
+[string]$server,
+	[Parameter(Mandatory=$true)]
+[string]$database,
+	[Parameter(Mandatory=$true)]
+[string]$user,
+	[Parameter(Mandatory=$true)]
+[string]$pwd,
+	[Parameter(Mandatory=$true)]
+[string]$dir,
 [string]$schema="dbo",
-[string]$bcp = "C:\Program Files\Microsoft SQL Server\110\Tools\Binn\bcp.exe",
+	[Parameter(Mandatory=$true)]
+[string]$bcp,
 [string]$batchsize = 5000
 )
 

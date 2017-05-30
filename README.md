@@ -1,5 +1,7 @@
 # MigratePostgreSQLToSQLServer
-Migrate Table Schema and Data from PostgreSQL to SQL Server (Azure & On-Premise) in 4 easy steps
+Migrate Table Schema and Data from PostgreSQL to SQL Server (Azure & On-Premise) in 4 easy steps.
+
+To test this module, download and restore dvdrental sample PostgreSQL database from here - http://www.postgresqltutorial.com/postgresql-sample-database/
 
 Download and copy the module to your module directory. To find out the default module directory execute the below powershell command 
 

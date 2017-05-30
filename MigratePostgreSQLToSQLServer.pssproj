@@ -36,6 +36,14 @@
   <ItemGroup>
     <Content Include="en-us\about_MigratePostgreSQLToSQLServer.help.txt" />
   </ItemGroup>
+  <ItemGroup>
+    <Reference Include="CsvDataReader, Version=1.0.1.0, Culture=neutral, PublicKeyToken=null">
+      <Name>CsvDataReader</Name>
+      <AssemblyName>CsvDataReader.dll</AssemblyName>
+      <HintPath>CsvDataReader.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+  </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <Target Name="Build" />
 </Project>

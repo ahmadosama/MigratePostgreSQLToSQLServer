@@ -38,9 +38,9 @@ $p.Start() | Out-Null
 $stdout = $p.StandardOutput.ReadToEnd()
 $stderr = $p.StandardError.ReadToEnd()
 $p.WaitForExit()
-Write-Host "stdout: $stdout"
-Write-Host "stderr: $stderr"
-Write-Host "exit code: " + $p.ExitCode
+Write-Host "stdout: $stdout" -ForegroundColor Green
+Write-Host "stderr: $stderr" -ForegroundColor Red
+Write-Host "exit code: " + $p.ExitCode -ForegroundColor Yellow
 }
 
 <# 
@@ -67,7 +67,7 @@ Write-Host "exit code: " + $p.ExitCode
   The password for the username specified in puser parameter
 
  .Example
-  $result = ExecuteQuery-PostgreSQL -server $server -db $db -puser postgres -ppwd postgres -query $query
+  $result = ExecuteQuery-PostgreSQL -server $server -db $database -puser postgres -ppwd postgres -query $query
   #do something with $results.
      
 #>
@@ -78,14 +78,14 @@ function ExecuteQuery-PostgreSQL{
 		[Parameter(Mandatory=$true)]
    [string]$server,
 	   [Parameter(Mandatory=$true)]
-   [string]$db,
+   [string]$database,
 	   [Parameter(Mandatory=$true)]
    [string]$puser,
 	   [Parameter(Mandatory=$true)]
    [string]$ppwd
    )
    $conn = New-Object System.Data.Odbc.OdbcConnection
-   $conn.ConnectionString = "Driver={PostgreSQL ODBC Driver(UNICODE)};Server=$server;Database=$db;Uid=$puser;Pwd=$ppwd;"
+   $conn.ConnectionString = "Driver={PostgreSQL ODBC Driver(UNICODE)};Server=$server;Database=$database;Uid=$puser;Pwd=$ppwd;"
    $conn.open()
    $cmd = New-object System.Data.Odbc.OdbcCommand($query,$conn)
    $ds = New-Object system.Data.DataSet
@@ -145,7 +145,7 @@ param
 [string]$datapath,
 [string]$server,
 	[Parameter(Mandatory=$true)]
-[string]$db,
+[string]$database,
 	[Parameter(Mandatory=$true)]
 [string]$puser,
 [string]$ppwd,
@@ -156,92 +156,104 @@ param
 [string]$schema="dbo",
 [string]$scriptoptions="all" #schema/data/all
 )
-
-#create destination directory if it doesn't exists
-if((Test-Path("$scriptpath\1_Tables")) -eq $false)
-{ New-Item -Path "$scriptpath\1_Tables" -ItemType Directory | Out-Null}
-
-$scriptpath = "$scriptpath\1_Tables" 
-
-#get tables to export
-$query = "select table_schema || '.' || table_name As tablename from information_schema.tables where table_type = 'BASE TABLE' and table_schema != 'pg_catalog' AND table_schema != 'information_schema';"
-$result = ExecuteQuery-PostgreSQL -server $server -db $db -puser postgres -ppwd postgres -query $query
-
-$nl = [Environment]::NewLine;
-
-
-$tablename=""
-foreach($tbl in $result)
-{
-$tblfullname = $tbl.tablename;
-$tablename = $tbl.tablename.Split('.')[1];
-
-
-#script data
-if($scriptoptions -eq "All" -or $scriptoptions -eq "data")
-{
-$tsvpath = ($datapath + "\" + $tablename + ".tsv").Replace("\","\\");
-#psql -h localhost -U postgres -d mydb  -c "COPY (select * from site_users) TO E'C:\\Projects\\Migration\\PostgrestoSQLServer\\Data\\csv\\site_users'  WITH CSV DELIMITER E'\t'"
-$argument = "-h $server -U $puser -d $db -c `"COPY $tblfullname TO E'$tsvpath' WITH CSV DELIMITER E'\t'"
-$argument
-Execute-Process -filepath $psqlpath -arguments $argument
-}
-
-
-$colquery = "SELECT table_name,column_name,column_default,is_nullable,data_type,character_maximum_length,numeric_precision,udt_name from Information_Schema.Columns where table_name='$tablename';"
-$colresult = ExecuteQuery-PostgreSQL -server localhost -db mydb -puser postgres -ppwd postgres -query $colquery
-$qry=""
-
-$dt = ""
-
-
-# script schema
-if($scriptoptions -eq "schema" -or $scriptoptions -eq "all")
-{
-# CHANGE THE DATA TYPES HERE.
-foreach($col in $colresult)
-{
-#parse datatype
-if($col.udt_name -eq "int8")
-{ $dt = "bigint" }
-elseif ($col.udt_name -eq "int4")
-{ $dt= "int" }
-elseif ($col.udt_name -eq "timestamptz")
-{ $dt= "datetime2"}
-elseif ($col.udt_name -eq "bool")
-{ $dt= "varchar(5)"}
-elseif ($col.udt_name -eq "text")
-{ $dt= "nvarchar(max)"}
-else
-{$dt=$col.udt_name;}
-
-#parse datatype length
-$cml = $col.character_maximum_length
-if([string]::IsNullOrEmpty($col.character_maximum_length))
-{ $dl = "" }
-else
-{ $dl = "(" + $col.character_maximum_length + ")" }
-
-#Add NULL/NOT NULL
-$nullable=""
-if($col.is_nullable -eq "NO")
-{ $nullable = " NOT NULL " }
-else
-{ $nullable = " NULL " }
- 
-
-$qry= $qry + '"' +$col.column_name  + '" ' + $dt + $dl + $nullable + ",$nl" 
-
-}
-
-
-$qry = "Create Table `"$schema`".`"$tablename`"($nl $qry)"  
-$last_comma = $qry.LastIndexOf(',')
-$createtablequery = $qry.Remove($last_comma, 1).Insert($last_comma, '')
-$createtablequery | Out-File "$scriptpath\$tablename.sql"
-
-}
-}
+	#create destination directory if it doesn't exists
+	if((Test-Path("$scriptpath\1_Tables")) -eq $false)
+	{ 
+		New-Item -Path "$scriptpath\1_Tables" -ItemType Directory | Out-Null
+	}
+	$scriptpath = "$scriptpath\1_Tables" 
+	#get tables to export
+	$query = "select table_schema || '.' || table_name As tablename from information_schema.tables where table_type = 'BASE TABLE' and table_schema != 'pg_catalog' AND table_schema != 'information_schema';"
+	$result = ExecuteQuery-PostgreSQL -server $server -db $database -puser $puser -ppwd $ppwd -query $query
+	$nl = [Environment]::NewLine;
+	$tablename=""
+	foreach($tbl in $result)
+	{
+		$tblfullname = $tbl.tablename;
+		$tablename = $tbl.tablename.Split('.')[1];
+		#script data
+		if($scriptoptions -eq "All" -or $scriptoptions -eq "data")
+		{
+			$tsvpath = ($datapath + "\" + $tablename + ".csv").Replace("\","\\");
+			$argument = "-h $server -U $puser -d $database -c `"COPY $tblfullname TO E'$tsvpath' WITH CSV"
+			Execute-Process -filepath $psqlpath -arguments $argument
+		}
+		$colquery = "SELECT table_name,column_name,column_default,is_nullable,data_type,character_maximum_length,numeric_precision,udt_name from Information_Schema.Columns where table_name='$tablename';"
+		$colresult = ExecuteQuery-PostgreSQL -server localhost -db $database -puser $puser -ppwd $ppwd -query $colquery
+		$qry=""
+		$dt = ""
+		# script schema
+		if($scriptoptions -eq "schema" -or $scriptoptions -eq "all")
+		{
+			# CHANGE THE DATA TYPES HERE.
+			foreach($col in $colresult)
+			{
+				#parse datatype
+				if($col.udt_name -eq "int8")
+				{ 
+					$dt = "bigint" 
+				}
+				elseif ($col.udt_name -eq "int4")
+				{ 
+					$dt= "int" 
+				}
+				elseif ($col.udt_name -eq "int2")
+				{ 
+					$dt= "smallint" 
+				}
+				elseif ($col.udt_name -eq "bytea")
+				{ 
+					$dt= "varbinary(max)" 
+				}
+				elseif ($col.udt_name -eq "timestamptz") 
+				{ 
+					$dt= "datetime2"
+				}
+				elseif ($col.udt_name -eq "timestamp")
+				{
+					$dt = "datetime"
+				}
+				elseif ($col.udt_name -eq "bool")
+				{ 
+					$dt= "varchar(5)"
+				}
+				elseif ($col.udt_name -eq "text")
+				{ 
+					$dt= "varchar(max)"
+				}
+				elseif ($col.udt_name -eq "bpchar")
+				{ 
+					$dt= "char"
+				}
+				elseif ($col.data_type -eq "USER-DEFINED" -or $col.udt_name -eq "tsvector" -or $col.udt_name -eq "_text")
+				{
+					$dt= "varchar(max)"
+				}
+				else
+				{
+					$dt=$col.udt_name;
+				}
+				#parse datatype length
+				$cml = $col.character_maximum_length
+				if([string]::IsNullOrEmpty($col.character_maximum_length))
+				{ $dl = "" }
+				else
+				{ $dl = "(" + $col.character_maximum_length + ")" }
+				#Add NULL/NOT NULL
+				$nullable=""
+				if($col.is_nullable -eq "NO")
+				{ $nullable = " NOT NULL " }
+				else
+				{ $nullable = " NULL " }
+				$qry= $qry + '"' +$col.column_name  + '" ' + $dt + $dl + $nullable + ",$nl" 
+			}
+			$qry = "Create Table `"$schema`".`"$tablename`"($nl $qry)"  
+			$last_comma = $qry.LastIndexOf(',')
+			$createtablequery = $qry.Remove($last_comma, 1).Insert($last_comma, '')
+			Write-Host "Generating script for table $tablename..." -ForegroundColor Green
+			$createtablequery | Out-File "$scriptpath\$tablename.sql"
+		}
+	}
 }
 
 
@@ -288,7 +300,7 @@ param
 	[Parameter(Mandatory=$true)]
 [string]$server,
 	[Parameter(Mandatory=$true)]
-[string]$db,
+[string]$database,
 	[Parameter(Mandatory=$true)]
 [string]$puser,
 [string]$ppwd,
@@ -308,19 +320,21 @@ $constraintpath = "$scriptpath\2_Constraints"
 
 #script out primary and foreign keys
 $pkfkquery = "SELECT 'ALTER TABLE ' || '`"' || relname || '`"'|| ' ADD CONSTRAINT ' || '`"' || conname || '`" '|| pg_get_constraintdef(pg_constraint.oid)||';' AS keys FROM pg_constraint INNER JOIN pg_class ON conrelid=pg_class.oid INNER JOIN pg_namespace ON pg_namespace.oid=pg_class.relnamespace ORDER BY CASE WHEN contype='f' THEN 0 ELSE 1 END DESC,contype DESC,nspname DESC,relname DESC,conname DESC;" 
-$pkfkresult = ExecuteQuery-PostgreSQL -server localhost -db mydb -puser postgres -ppwd postgres -query $pkfkquery
+Write-Host "Scripting keys(Primary, Foreign & Unique) to $constraintpath\2_primary_foreign_unique_key.sql" -ForegroundColor Green
+$pkfkresult = ExecuteQuery-PostgreSQL -server localhost -db $database -puser $puser -ppwd $ppwd -query $pkfkquery
 $pkfkresult.keys | Out-File "$constraintpath\2_primary_foreign_unique_key.sql"
 
 
 #script out check constraints
 $ccquery = "SELECT 'Alter table `"' || tc.table_name || '`" ADD CONSTRAINT `"' || tc.constraint_name || '`" CHECK (' || cc.check_clause || ');' AS cc FROM information_schema.check_constraints as cc join information_schema.table_constraints as tc on cc.constraint_name=tc.constraint_name where tc.constraint_type='CHECK' and tc.constraint_schema!='pg_catalog' and tc.constraint_schema!='information_schema';"
-$ccresult = ExecuteQuery-PostgreSQL -server localhost -db mydb -puser postgres -ppwd postgres -query $ccquery
+$ccresult = ExecuteQuery-PostgreSQL -server localhost -db $database -puser $puser -ppwd $ppwd -query $ccquery
+	Write-Host "Scripting check constraints to $constraintpath\1_check_constraints.sql" -ForegroundColor Green
 $ccresult.cc | Out-File "$constraintpath\1_check_constraints.sql"
 
 
 #script out sequences
 $sqquery = "select `"sequence_schema`" || '.' || `"sequence_name`" AS seqname from Information_Schema.SEQUENCES;"
-$sqresult = ExecuteQuery-PostgreSQL -server localhost -db mydb -puser postgres -ppwd postgres -query $sqquery
+$sqresult = ExecuteQuery-PostgreSQL -server localhost -db $database -puser $puser -ppwd $ppwd -query $sqquery
 $sq=""
 foreach($row in $sqresult)
 {
@@ -328,14 +342,14 @@ $schema=$row.seqname.split('.')[0];
 $seqname = $row.seqname.split('.')[1];
 
 $sqscript = "select 'CREATE SEQUENCE '|| `"sequence_name`" || ' AS BIGINT ' || ' START WITH ' || start_value || ' INCREMENT BY '|| increment_by || ' MINVALUE ' || min_value || ' MAXVALUE ' || max_value || CASE WHEN is_cycled='0' THEN ' NO CYCLE;' ELSE ' YES CYCLE;' END AS seqscript, ' ALTER SEQUENCE ' || sequence_name || ' RESTART WITH ' || last_value || ';' AS seqreset from $seqname;" 
-$sq1result = ExecuteQuery-PostgreSQL -server localhost -db mydb -puser postgres -ppwd postgres -query $sqscript
+$sq1result = ExecuteQuery-PostgreSQL -server localhost -db $database -puser $puser -ppwd $ppwd -query $sqscript
 $sq= $sq + $nl + $sq1result.seqscript + $nl + $sq1result.seqreset
 }
 
 $sqpath = "$scriptpath\3_Sequences";
 if((Test-Path("$sqpath")) -eq $false)
 { New-Item -Path "$sqpath" -ItemType Directory}
-
+	Write-Host "Scripting sequences to $sqpath\sequences.sql" -ForegroundColor Green
 $sq |   Out-File "$sqpath\sequences.sql"
 
 }
@@ -407,36 +421,42 @@ param(
 
 TRY
 {
-# Log in to your Azure account. Enable this for the first time to get the Azure Credentials
-#Login-AzureRmAccount | Out-Null
+
+	if([string]::IsNullOrEmpty($AzureProfilePath.Length))
+	{ 
+		# Log in to your Azure account. Enable this for the first time to get the Azure Credential
+		Login-AzureRmAccount | Out-Null
+	}
+	else
+	{
+		#get profile details from the saved json file
+		#enable if you have a saved profile
+		$profile = Select-AzureRmProfile -Path $AzureProfilePath
+		#Set the Azure Context
+		$a=Set-AzureRmContext -SubscriptionId $profile.Context.Subscription.SubscriptionId 
+	}
 
 #Save your azure profile. This is to avoid entering azure credentials everytime you run a powershell script
 #This is a json file in text format. If someone gets to this, you are done :)
 #Save-AzureRmProfile -Path $AzureProfilePath | Out-Null
 
-#get profile details from the saved json file
-#enable if you have a saved profile
-$profile = Select-AzureRmProfile -Path $AzureProfilePath
-
-#Set the Azure Context
-Set-AzureRmContext -SubscriptionId $profile.Context.Subscription.SubscriptionId 
-
 #check if resource group exists
-Get-AzureRmResourceGroup -Name $resourcegroupname -Location $location -ErrorAction SilentlyContinue -ErrorVariable rgerror
+$e = Get-AzureRmResourceGroup -Name $resourcegroupname -Location $location -ErrorAction SilentlyContinue -ErrorVariable rgerror
 if($rgerror -ne $null)
 {
-Write-host "Creating Azure Resource Group $resourcegroupname... " -ForegroundColor Green
-New-AzureRmResourceGroup -Name $resourcegroupname -Location $location
+Write-host "Provisioning Azure Resource Group $resourcegroupname... " -ForegroundColor Green
+$b=New-AzureRmResourceGroup -Name $resourcegroupname -Location $location
+Write-host "$resourcegroupname provisioned." -ForegroundColor Green
 }
 
 #create azure sql server if it doesn't exits
-Get-AzureRmSqlServer -ServerName $azuresqlservername -ResourceGroupName $resourcegroupname -ErrorAction SilentlyContinue -ErrorVariable checkserver
+$f = Get-AzureRmSqlServer -ServerName $azuresqlservername -ResourceGroupName $resourcegroupname -ErrorAction SilentlyContinue -ErrorVariable checkserver
 if ($checkserver -ne $null) 
 { 
 #create a sql server
-Write-host "Creating Azure SQL Server $azuresqlservername ... " -ForegroundColor Green
-New-AzureRmSqlServer -ResourceGroupName $resourcegroupname -ServerName $azuresqlservername -Location $location -SqlAdministratorCredentials $(New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $login, $(ConvertTo-SecureString -String $password -AsPlainText -Force))
-
+Write-host "Provisioning Azure SQL Server $azuresqlservername ... " -ForegroundColor Green
+$c=New-AzureRmSqlServer -ResourceGroupName $resourcegroupname -ServerName $azuresqlservername -Location $location -SqlAdministratorCredentials $(New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $login, $(ConvertTo-SecureString -String $password -AsPlainText -Force))
+Write-host "$azuresqlservername provisioned." -ForegroundColor Green
 }
 
 #create a firewall rule
@@ -454,7 +474,8 @@ New-AzureRmSqlServerFirewallRule -ResourceGroupName $resourcegroupname  -ServerN
 
 #create sql database
 Write-host "Creating Azure SQL database $databasename in $azuresqlservername ... " -ForegroundColor Green
-New-AzureRmSqlDatabase  -ResourceGroupName $resourcegroupname  -ServerName $azuresqlservername -DatabaseName $databasename -RequestedServiceObjectiveName "S0" -ErrorVariable sqldberr
+$d=New-AzureRmSqlDatabase  -ResourceGroupName $resourcegroupname  -ServerName $azuresqlservername -DatabaseName $databasename -RequestedServiceObjectiveName "S0" -ErrorVariable sqldberr
+Write-host "$databasename provisioned." -ForegroundColor Green
 }
 CATCH
 {
@@ -514,18 +535,28 @@ param(
 )
 	if($query.length -le 1 -and $dir.Length -le 1)
 	{ Write-Host "Please provide a query, directory with .sql files to execute. "; return;}
-
+	
+	if($query.Length -gt 1)
+	{
+		Write-host "Executing query... " -ForegroundColor Green
+		Invoke-SQLcmd -ServerInstance $server -Database $database -Username $user -Password $pwd -Query $query
+		return;
+	}
 	$loc = Get-Location
-#execute all .sql files in a dir
-$sqlfiles = Get-ChildItem -Path $dir -Recurse -Include *.sql
-foreach($sql in $sqlfiles)
-{
-#execute the file
-Write-Host $sql.FullName
-Invoke-SQLcmd -ServerInstance $server -Database $database -Username $user -Password $pwd -InputFile $sql.FullName
-}
+
+	if($dir.Length -gt 1)
+	{
+		#execute all .sql files in a dir
+		$sqlfiles = Get-ChildItem -Path $dir -Recurse -Include *.sql
+		foreach($sql in $sqlfiles)
+		{
+			#execute the file
+			Write-Host "Executing " $sql.FullName "..." -ForegroundColor Green
+			Invoke-SQLcmd -ServerInstance $server -Database $database -Username $user -Password $pwd -InputFile $sql.FullName
+		}
 	#switch to the current location
 	Set-Location $loc;
+	}
 }
 
 
@@ -550,8 +581,7 @@ Invoke-SQLcmd -ServerInstance $server -Database $database -Username $user -Passw
   The password for the SQL Server login name specified by the user parameter 
 
  .Parameter dir
- The directory path with .sql files to be executed. All the 
- .sql files in the dir are executed.
+ The directory path with all data files to be imported into sql server
 
  .Parameter schema
  Specify the schema name for the tables in SQL Server. The default is dbo.
@@ -592,17 +622,17 @@ if((Test-Path $dir) -eq $false){ Write-host "Directory $dir doesn't exists." -Fo
 if((Test-Path $dir) -eq $true)
 { 
 Write-host "Importing data from $dir into $server." -ForegroundColor Green
-$items = Get-ChildItem -Path $dir -Include *.tsv -Recurse
+$items = Get-ChildItem -Path $dir -Include *.csv -Recurse
 $arguments="";
 foreach($item in $items)
 {
-Write-Host "Importing $item.Fullname..."
+Write-Host "Importing " + $item.Fullname "..." -ForegroundColor Green
 $tablename = $item.BaseName.split(".")[1];
 if($tablename -eq $null)
 { $tablename = $item.BaseName.split(".")[0]; }
 $fullpath = $item.fullname
 
-$arguments = " $schema.$tablename in `"$fullpath`" -c -S $server -U $user -P $pwd -d $database -b $batchsize"
+$arguments = " $schema.$tablename in `"$fullpath`" -c -k -t, -S $server -U $user -P $pwd -d $database -b $batchsize"
 $arguments
 Execute-Process -filepath $bcp -arguments $arguments
 
@@ -610,5 +640,114 @@ Execute-Process -filepath $bcp -arguments $arguments
 
 }
 
+}
+
+
+<# 
+ .Synopsis
+  Import csv files in sql server using bulk insert
+
+ .Description
+  This function imports a csv file into SQL Server using bulk insert. You can either import 
+  a single csv file or all files in a specified directory. The csv file name should be same 
+  as the SQL Server table name you are importing data into.
+
+ .Parameter server
+  The SQL Server instance to run the query.
+
+ .Parameter database
+  The SQL Server database to run the query
+
+ .Parameter user
+  The SQL Server user name
+ 
+ .Parameter pwd
+  The password for the SQL Server login name specified by the user parameter 
+
+ .Parameter dir
+ The directory path with csv files to be imported.
+
+ .Parameter file
+ The csv file to be imported.
+
+ .Parameter schema
+ Specify the schema name for the tables in SQL Server. The default is dbo.
+ 
+ 
+ .Example
+ #Import data into azure sql database from all csv files in C:\Projects\Migration\PostgrestoSQLServer\Data directory
+ BulkInsert-SQLServer -server dplserver530.database.windows.net -database dvdrental -user dpladmin -pwd Awesome@0987 -dir "C:\Projects\Migration\PostgrestoSQLServer\Data"
+     
+#>
+function BulkInsert-SQLServer{
+	param(
+		[Parameter(Mandatory=$true)]
+[string]$server,
+	[Parameter(Mandatory=$true)]
+[string]$database,
+	[Parameter(Mandatory=$true)]
+[string]$user,
+	[Parameter(Mandatory=$true)]
+[string]$pwd,
+[string]$dir,
+[string]$file,
+[string]$schema="dbo"
+	)
+	[System.Reflection.Assembly]::LoadFrom("C:\Users\Administrator\Documents\WindowsPowerShell\Modules\MigratePostgreSQLToSQLServer\CsvDataReader.dll") | Out-Null
+	
+	if([string]::IsNullOrEmpty($file) -and [string]::IsNullOrEmpty($dir))
+	{
+		Write-Host "Provide either a file or a directory path to import data" -ForegroundColor Red;
+		return;
+	}
+	if(($file.Length -ge 5))
+	{
+		if((Test-Path $file) -eq $false)
+		{ 
+			Write-host "File $file doesn't exists." -ForegroundColor Red;
+			return;
+		}
+		$tablename = (Get-Item -Path $file).Name
+		$tablename = $tablename.Split('.')[0]
+		$reader = New-Object SqlUtilities.CsvDataReader($file)
+		$ConnectionString = "Data Source=$server;Initial Catalog=dvdrental;User ID=$user;Password=$pwd;"
+		$bulkCopy = new-object ("Data.SqlClient.SqlBulkCopy") $ConnectionString
+		$bulkCopy.DestinationTableName = $tablename
+			Write-Host "Importing data into $tablename" -ForegroundColor Green;
+		$bulkCopy.WriteToServer($reader);
+		return;
+	}
+
+	if($dir.Length -ge 5)
+	{
+		if((Test-Path $dir) -eq $false)
+		{ 
+			Write-host "Directory $dir doesn't exists." -ForegroundColor Red;
+			return;
+		}
+	
+
+	if((Test-Path $dir) -eq $true)
+	{ 
+		Write-host "Importing data from $dir into $server" -ForegroundColor Green
+		$items = Get-ChildItem -Path $dir -Include *.csv -Recurse
+		foreach($item in $items)
+		{
+			Write-Host "Importing " $item.Fullname "..." -ForegroundColor Green
+			$tablename = $item.BaseName.split(".")[1];
+			if($tablename -eq $null)
+			{ 
+				$tablename = $item.BaseName.split(".")[0]; 
+			}
+			$fullpath = $item.fullname
+			
+			$reader = New-Object SqlUtilities.CsvDataReader($fullpath)
+			$ConnectionString = "Data Source=$server;Initial Catalog=dvdrental;User ID=$user;Password=$pwd;"
+			$bulkCopy = new-object ("Data.SqlClient.SqlBulkCopy") $ConnectionString
+			$bulkCopy.DestinationTableName = $tablename
+			$bulkCopy.WriteToServer($reader);
+		}
+	}
+	}
 }
 
